@@ -1,0 +1,6 @@
+services:
+  netprobe-level2:
+    build: .
+    ports:
+      - "5002:5000"
+    restart: unless-stopped
