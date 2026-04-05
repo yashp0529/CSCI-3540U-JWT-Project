@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TokenVault – Level 2 | JWT CTF</title>
+  <meta name="description" content="JWT Authentication CTF Challenge – Level 2: Weak Secret Key" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #080a08;
+      --surface:   #0e0f0e;
+      --surface2:  #141614;
+      --border:    #1e221e;
+      --accent:    #f59e0b;
+      --accent-lo: rgba(245,158,11,0.10);
+      --accent-md: rgba(245,158,11,0.30);
+      --success:   #10b981;
+      --text:      #e1e4e0;
+      --muted:     #6b7268;
+      --mono:      'JetBrains Mono', monospace;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 15% 15%, rgba(245,158,11,0.06) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 85%, rgba(16,185,129,0.04) 0%, transparent 55%);
+    }
+    .navbar {
+      background: rgba(14,15,14,0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display:flex; align-items:center; gap:10px; font-size:1.1rem; font-weight:700; }
+    .level-badge {
+      background: var(--accent-lo);
+      border: 1px solid var(--accent-md);
+      color: var(--accent);
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 0.68rem; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .user-pill {
+      display:flex; align-items:center; gap:6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 5px 12px; border-radius: 20px; font-size:0.82rem;
+    }
+    .role-badge { padding:2px 8px; border-radius:4px; font-size:0.72rem; font-weight:700; font-family:var(--mono); }
+    .role-user  { background:rgba(59,130,246,0.18); color:#60a5fa; }
+    .role-admin { background:rgba(245,158,11,0.18);  color:#fbbf24; }
+    .container { max-width:860px; margin:0 auto; padding:2rem 1.5rem; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius:14px; padding:1.8rem; margin-bottom:1.4rem;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: #2a2e2a; }
+    .card h2 { font-size:1.05rem; font-weight:600; margin-bottom:1.4rem; display:flex; align-items:center; gap:8px; }
+    .info-banner {
+      background: linear-gradient(135deg, rgba(245,158,11,0.07), rgba(59,130,246,0.05));
+      border: 1px solid rgba(245,158,11,0.22);
+      border-radius:12px; padding:1.2rem 1.5rem; margin-bottom:1.4rem;
+    }
+    .info-banner h3 { color:var(--accent); font-size:0.9rem; margin-bottom:.6rem; }
+    .info-banner ul { font-size:0.83rem; color:var(--muted); line-height:1.7; padding-left:1.2rem; }
+    .info-banner li strong { color:var(--text); }
+    .form-group { margin-bottom:1rem; }
+    .form-group label { display:block; font-size:0.82rem; color:var(--muted); margin-bottom:5px; font-weight:500; }
+    input[type=text], input[type=password] {
+      width:100%; background:var(--surface2); border:1px solid var(--border);
+      border-radius:8px; padding:10px 14px; color:var(--text);
+      font-size:0.92rem; font-family:'Inter',sans-serif; outline:none; transition: border-color .2s;
+    }
+    input:focus { border-color:var(--accent); }
+    .btn { padding:10px 18px; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; cursor:pointer; transition: all .2s; font-family:'Inter',sans-serif; }
+    .btn-primary { background:var(--accent); color:#000; width:100%; margin-top:.3rem; font-weight:700; }
+    .btn-primary:hover { filter:brightness(1.1); transform:translateY(-1px); }
+    .btn-secondary { background:var(--surface2); border:1px solid var(--border); color:var(--text); }
+    .btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+    .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--muted); font-size:0.78rem; padding:5px 12px; }
+    .btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+    .alert { padding:11px 15px; border-radius:8px; margin-top:.9rem; font-size:0.86rem; }
+    .alert-success { background:rgba(16,185,129,.1); border:1px solid rgba(16,185,129,.3); color:#34d399; }
+    .alert-error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.3);  color:#f87171; }
+    .token-box {
+      background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:12px 14px; font-family:var(--mono); font-size:0.72rem;
+      word-break:break-all; line-height:1.7; margin-top:.8rem;
+    }
+    .t-red { color:#f87171; } .t-grn { color:#34d399; } .t-blu { color:#60a5fa; } .dot { color:var(--muted); }
+    .res-box {
+      background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+      padding:14px; font-family:var(--mono); font-size:0.78rem;
+      white-space:pre-wrap; word-break:break-all; color:#a5b4fc; margin-top:1rem; max-height:280px; overflow-y:auto;
+    }
+    .res-box.flag { color:#fbbf24; border-color:rgba(245,158,11,.4); }
+    .hint {
+      background:rgba(59,130,246,.06); border:1px solid rgba(59,130,246,.22);
+      border-radius:8px; padding:12px 15px; font-size:0.82rem; color:#93c5fd; margin-top:1rem;
+    }
+    .hint code { font-family:var(--mono); background:var(--surface2); padding:1px 5px; border-radius:4px; color:#60a5fa; }
+    .cred-hint { font-size:0.78rem; color:var(--muted); margin-top:1rem; }
+    .cred-hint code { font-family:var(--mono); background:var(--surface2); padding:1px 5px; border-radius:4px; color:#a5b4fc; }
+    .action-row { display:flex; gap:.8rem; flex-wrap:wrap; margin-top:1rem; }
+    hr { border:none; border-top:1px solid var(--border); margin:1.4rem 0; }
+    .section-label { font-size:0.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:.6rem; }
+    .hidden { display:none !important; }
+    .crack-steps {
+      background:var(--surface2); border:1px solid var(--border);
+      border-radius:8px; padding:14px; font-family:var(--mono);
+      font-size:0.78rem; color:#d1fae5; line-height:1.8; margin-top:.8rem;
+    }
+    .crack-steps .comment { color:var(--muted); }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="logo">
+    <span>🔐</span>
+    <span>TokenVault</span>
+    <span class="level-badge">Level 2 – Weak Secret Key</span>
+  </div>
+  <div id="nav-user-area">
+    <div class="user-pill hidden" id="nav-pill">
+      <span>👤</span>
+      <span id="nav-username">-</span>
+      <span class="role-badge role-user" id="nav-role">user</span>
+      <button class="btn btn-ghost" onclick="logout()">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="info-banner">
+    <h3>⚠️ CTF Challenge – Level 2: Weak Secret Key</h3>
+    <ul>
+      <li>This app <strong>does verify the JWT signature</strong> — unlike Level 1</li>
+      <li>However, the <strong>secret key is "secret"</strong>, which is trivially easy to brute-force</li>
+      <li>Goal: Capture a token → crack the secret → forge a new token with <strong>role: admin</strong></li>
+      <li>Hint: Use <code>jwt-cracker</code> or <code>hashcat</code> to crack the HMAC-SHA256 secret</li>
+    </ul>
+  </div>
+
+  <div class="card" id="login-card">
+    <h2>🔑 Login</h2>
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="e.g. alice" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="e.g. password123" />
+      </div>
+      <button type="submit" class="btn btn-primary">Login →</button>
+    </form>
+    <div id="login-result"></div>
+    <p class="cred-hint">Try: <code>alice</code> / <code>password123</code></p>
+  </div>
+
+  <div id="auth-section" class="hidden">
+
+    <div class="card">
+      <h2>🎫 Your JWT Token</h2>
+      <p style="font-size:.82rem;color:var(--muted)">Copy this token and crack its HMAC-SHA256 secret using a brute-force tool.</p>
+      <div class="token-box" id="token-display"></div>
+
+      <hr />
+      <p class="section-label">Decoded Payload (no signature check needed to read this)</p>
+      <div class="res-box" id="token-payload" style="color:#34d399;"></div>
+
+      <hr />
+      <p class="section-label">🔧 How to Crack &amp; Forge (run these on your machine)</p>
+      <div class="crack-steps">
+<span class="comment"># Step 1 – Install jwt-cracker (Node.js tool)</span>
+npm install -g jwt-cracker
+
+<span class="comment"># Step 2 – Crack the secret (paste your token below)</span>
+jwt-cracker "&lt;paste-your-token-here&gt;" --alphabet "abcdefghijklmnopqrstuvwxyz0123456789"
+
+<span class="comment"># If cracked, secret will be revealed (it's: "secret")</span>
+
+<span class="comment"># Step 3 – Forge a new admin token in Node.js</span>
+node -e "const jwt=require('jsonwebtoken'); console.log(jwt.sign({username:'hacker',role:'admin'},'secret',{algorithm:'HS256'}))"
+
+<span class="comment"># Step 4 – Paste forged token into the box below and click "Admin Panel (forged)"</span>
+      </div>
+
+      <hr />
+      <p class="section-label">✏️ Forged Admin Token</p>
+      <textarea class="custom-token-area" id="custom-token" spellcheck="false" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:var(--mono);font-size:0.74rem;min-height:70px;resize:vertical;outline:none;margin-top:.5rem;"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>🧭 Explore Routes</h2>
+      <div class="action-row">
+        <button class="btn btn-secondary" onclick="getProfile()">📋 My Profile</button>
+        <button class="btn btn-secondary" onclick="getAdmin()">🔴 Admin Panel (real token)</button>
+        <button class="btn btn-secondary" onclick="getAdminCustom()">🎭 Admin Panel (forged token)</button>
+      </div>
+      <div class="res-box hidden" id="res-box"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let token = '';
+  function logout(){
+    token='';
+    document.getElementById('auth-section').classList.add('hidden');
+    document.getElementById('login-card').classList.remove('hidden');
+    document.getElementById('nav-pill').classList.add('hidden');
+    document.getElementById('res-box').classList.add('hidden');
+  }
+  async function handleLogin(e){
+    e.preventDefault();
+    const username=document.getElementById('username').value.trim();
+    const password=document.getElementById('password').value.trim();
+    const resultEl=document.getElementById('login-result');
+    try{
+      const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+      const data=await res.json();
+      if(!res.ok){resultEl.innerHTML=`<div class="alert alert-error">❌ ${data.error}</div>`;return;}
+      token=data.token;
+      document.getElementById('login-card').classList.add('hidden');
+      document.getElementById('auth-section').classList.remove('hidden');
+      const pill=document.getElementById('nav-pill');
+      pill.classList.remove('hidden');
+      document.getElementById('nav-username').textContent=data.user.username;
+      const rol=document.getElementById('nav-role');
+      rol.textContent=data.user.role;
+      rol.className='role-badge '+(data.user.role==='admin'?'role-admin':'role-user');
+      displayToken(token);
+    }catch(err){resultEl.innerHTML=`<div class="alert alert-error">❌ ${err.message}</div>`;}
+  }
+  function displayToken(t){
+    const parts=t.split('.');
+    document.getElementById('token-display').innerHTML=`<span class="t-red">${parts[0]}</span><span class="dot">.</span><span class="t-grn">${parts[1]}</span><span class="dot">.</span><span class="t-blu">${parts[2]||''}</span>`;
+    try{const p=JSON.parse(atob(parts[1]));document.getElementById('token-payload').textContent=JSON.stringify(p,null,2);}
+    catch(_){document.getElementById('token-payload').textContent='Could not decode.';}
+  }
+  async function apiCall(url,tok){
+    const box=document.getElementById('res-box');
+    box.classList.remove('hidden','flag');
+    box.textContent='Loading…';
+    try{
+      const res=await fetch(url,{headers:{'Authorization':'Bearer '+tok}});
+      const data=await res.json();
+      box.textContent=JSON.stringify(data,null,2);
+      if(data.flag)box.classList.add('flag');
+    }catch(err){box.textContent='Error: '+err.message;}
+  }
+  function getProfile(){apiCall('/api/profile',token);}
+  function getAdmin(){apiCall('/api/admin',token);}
+  function getAdminCustom(){apiCall('/api/admin',document.getElementById('custom-token').value.trim());}
+</script>
+</body>
+</html>

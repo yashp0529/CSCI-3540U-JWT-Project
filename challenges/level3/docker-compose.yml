@@ -1,6 +1,0 @@
-services:
-  netprobe-level3:
-    build: .
-    ports:
-      - "5003:5000"
-    restart: unless-stopped

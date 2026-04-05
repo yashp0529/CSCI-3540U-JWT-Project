@@ -1,32 +1,8 @@
-# How to Run – Level 2 (Limited Protection)
-
-## Prerequisites
-- Docker Desktop installed and running
-
-## Run Command
-
-```bash
-docker-compose up --build
-```
-
-## Access the App
-
-Open your browser and go to:
+# How to Run – Level 2
 
 ```
-http://localhost:5002
+docker build -t tokenvault-level2 .
+docker run -p 3002:3000 tokenvault-level2
 ```
 
-## Stop the App
-
-Press `Ctrl + C` in the terminal, then run:
-
-```bash
-docker-compose down
-```
-
-## Challenge Goal
-
-Find the flag hidden at `/flag.txt` on the server by **bypassing the input filter**.
-
-**Hint:** The app blocks `;` but not all shell operators.
+Open your browser at: **http://localhost:3002**

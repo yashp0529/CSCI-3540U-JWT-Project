@@ -1,32 +1,8 @@
-# How to Run – Level 1 (Unprotected)
-
-## Prerequisites
-- Docker Desktop installed and running
-
-## Run Command
-
-```bash
-docker-compose up --build
-```
-
-## Access the App
-
-Open your browser and go to:
+# How to Run – Level 1
 
 ```
-http://localhost:5001
+docker build -t tokenvault-level1 .
+docker run -p 3001:3000 tokenvault-level1
 ```
 
-## Stop the App
-
-Press `Ctrl + C` in the terminal, then run:
-
-```bash
-docker-compose down
-```
-
-## Challenge Goal
-
-Find the flag hidden at `/flag.txt` on the server using command injection.
-
-**Hint:** The app runs `nslookup <your_input>` directly with no filtering.
+Open your browser at: **http://localhost:3001**
